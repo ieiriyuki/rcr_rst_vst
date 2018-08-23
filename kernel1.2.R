@@ -90,6 +90,9 @@ holidays <- holidays %>%
            date = ymd(calendar_date))
 head(holidays)
 
+# here save image
+save.image("kernel1.Rdata")
+
 # 4: Individual feature visualisations
 # air_visits
 p1 <- air_visits %>%
@@ -567,12 +570,15 @@ all_reserve %>%
     geom_density(alpha = 0.5)
 
 # 6: feature engineering
+head(air_visits)
 air_visits <- air_visits %>%
     mutate(wday = wday(visit_date, label=TRUE),
            wday = fct_relevel(wday, c("Mon", "Tue", "Wed", "Thu",
                                       "Fri", "Sat", "Sun")),
            month = month(visit_date, label=TRUE))
+head(air_visits)
 
+head(air_reserve)
 air_reserve <- air_reserve %>%
     mutate(reserve_date = date(reserve_datetime),
            reserve_hour = hour(reserve_datetime),
@@ -590,7 +596,9 @@ air_reserve <- air_reserve %>%
                                    unit = "hour"),
            diff_day = time_length(visit_datetime - reserve_datetime,
                                   unit = "day"))
+head(air_reserve)
 
+head(hpg_reserve)
 hpg_reserve <- hpg_reserve %>%
     mutate(reserve_date = date(reserve_datetime),
            reserve_hour = hour(reserve_datetime),
@@ -608,6 +616,7 @@ hpg_reserve <- hpg_reserve %>%
                                    unit = "hour"),
            diff_day = time_length(visit_datetime - reserve_datetime,
                                   unit = "day"))
+head(hpg_reserve)
 
 # count stores in area
 air_count <- air_store %>%
@@ -654,6 +663,336 @@ hpg_store <- hpg_store %>%
                                              TRUE ~ 5))) %>%
     left_join(hpg_count, by = "hpg_area_name") %>%
     separate(hpg_area_name, c("prefecture"), sep=" ", remove=FALSE)
+
+# days of the week & months of the year
+p1 <- air_visits %>%
+    group_by(wday) %>%
+    summarise(mean_log_visitors = mean(log1p(visitors)),
+              sd_log_visitors = sd(log1p(visitors))) %>%
+    ggplot(aes(wday, mean_log_visitors, color = wday)) +
+    geom_point(size = 4) +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors,
+                      color = wday), width = 0.5, size = 0.7) +
+    theme(legend.position = "none")
+
+p2 <- air_visits %>%
+    mutate(visitors = log1p(visitors)) %>%
+    ggplot(aes(visitors, wday, fill = wday)) +
+    geom_density_ridges(bandwidth = 0.1) +
+    scale_x_log10() +
+    theme(legend.position = "none") +
+    labs(x = "log1p(visitors)", y = "")
+
+p3 <- air_visits %>%
+    group_by(month) %>%
+    summarise(mean_log_visitors = mean(log1p(visitors)),
+              sd_log_visitors = sd(log1p(visitors))) %>%
+    ggplot(aes(month, mean_log_visitors, color = month)) +
+    geom_point(size = 4) +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors,
+                      color = month), width = 0.5, size = 0.7) +
+    theme(legend.position = "none")
+
+p4 <- air_visits %>%
+    mutate(visitors = log1p(visitors)) %>%
+    ggplot(aes(visitors, month, fill = month)) +
+    geom_density_ridges(bandwidth = 0.1) +
+    scale_x_log10() +
+    theme(legend.position = "none") +
+    labs(x = "log1p(visitors)", y = "")
+
+layout <- matrix(c(1,2,3,4),2,2, byrow=TRUE)
+multiplot(p1, p2, p3, p4, layout=layout)
+
+air_visits %>%
+    left_join(air_store, by = "air_store_id") %>%
+    group_by(wday, air_genre_name) %>%
+    summarise(mean_log_visitors = mean(log1p(visitors)),
+              sd_log_visitors = sd(log1p(visitors))) %>%
+    ggplot(aes(wday, mean_log_visitors, color = wday)) +
+    geom_point(size = 3) +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors,
+                      color = wday), width = 0.5, size = 0.7) +
+    theme(legend.position = "none",
+          axis.text.x  = element_text(angle=45, hjust=1, vjust=0.9)) +
+    facet_wrap(~ air_genre_name)
+
+all_reserve %>%
+    mutate(wday = wday(visit_date, label=TRUE),
+           
+           wday = fct_relevel(wday, c("Mon", "Tue", "Wed", "Thu",
+                                      "Fri", "Sat", "Sun"))) %>%
+    ggplot(aes(wday, visitors - reserve_visitors, fill = wday)) +
+    geom_boxplot() +
+    theme(legend.position = "none")
+
+# Restaurant per area - air/hpg_count
+p1 <- air_count %>%
+    ggplot(aes(air_count)) +
+    geom_histogram(binwidth = 2, fill = "blue")
+
+p2 <- hpg_count %>%
+    ggplot(aes(hpg_count)) +
+    geom_histogram(binwidth = 5, fill = "red")
+
+p3 <- air_visits %>%
+    left_join(air_store, by = "air_store_id") %>%
+    group_by(air_store_id, air_count) %>%
+    summarise(mean_store_visit = mean(log1p(visitors))) %>%
+    group_by(air_count) %>%
+    summarise(mean_log_visitors = mean(mean_store_visit),
+              sd_log_visitors = sd(mean_store_visit)) %>%
+    ggplot(aes(air_count, mean_log_visitors)) +
+    geom_point(size = 4, color = "blue") +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors),
+                  color = "blue", width = 0.5, size = 0.7) +
+    geom_smooth(method = "lm", color = "black") +
+    labs(x = "Air restaurants per area")
+
+layout <- matrix(c(1,2,3,3),2,2, byrow=TRUE)
+multiplot(p1, p2, p3, layout=layout)
+
+# Distance from the busiest area
+p1 <- air_store %>%
+    ggplot(aes(dist)) +
+    geom_histogram(bins = 30, fill = "blue") +
+    geom_vline(xintercept = c(80, 300, 500, 750)) +
+    labs(x = "Linear distance [km]")
+
+p2 <- hpg_store %>%
+    ggplot(aes(dist)) +
+    geom_histogram(bins = 30, fill = "red") +
+    geom_vline(xintercept = c(80, 300, 500, 750)) +
+    labs(x = "Linear distance [km]")
+
+p3 <- air_visits %>%
+    left_join(air_store, by = "air_store_id") %>%
+    group_by(air_store_id, dist_group) %>%
+    summarise(mean_store_visit = mean(log1p(visitors))) %>%
+    group_by(dist_group) %>%
+    summarise(mean_log_visitors = mean(mean_store_visit),
+              sd_log_visitors = sd(mean_store_visit)) %>%
+    ggplot(aes(dist_group, mean_log_visitors)) +
+    geom_point(size = 4, color = "blue") +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors),
+                  color = "blue", width = 0.5, size = 0.7) +
+    labs(x = "Distance grouping")
+
+layout <- matrix(c(1,2,3,3),2,2, byrow=TRUE)
+multiplot(p1, p2, p3, layout=layout)
+
+foo <- air_store %>%
+       select(latitude, longitude, dist_group) %>%
+       mutate(dset = "air")
+
+bar <- hpg_store %>%
+       select(latitude, longitude, dist_group) %>%
+       mutate(dset = "hpg")
+
+leaflet(foo) %>%
+    addTiles() %>%
+    addProviderTiles("CartoDB.Positron") %>%
+    addScaleBar() %>%
+    addCircleMarkers(~longitude, ~latitude,
+                     group = "AIR", color = "blue", fillOpacity = 0.5, 
+                     radius = 3*foo$dist_group) %>%
+    addCircleMarkers(lng = bar$longitude, lat = bar$latitude,
+                     group = "HPG", color = "red", fillOpacity = 0.5,
+                     radius = 3*bar$dist_group) %>%
+    addCircleMarkers(lng = med_coord_air$longitude,
+                     lat = med_coord_air$latitude, group = "Centre",
+                     color = "darkgreen", fillOpacity = 1) %>%
+    addLayersControl(overlayGroups = c("AIR", "HPG", "Centre"),
+                     options = layersControlOptions(collapsed = FALSE))
+
+# Prefectures
+p1 <- air_store %>%
+    ggplot(aes(prefecture)) +
+    geom_bar(fill = "blue") +
+    coord_flip() +
+    ggtitle("air prefectures - # restaurants") +
+    labs(x = "")
+
+p2 <- hpg_store %>%
+    ggplot(aes(prefecture)) +
+    geom_bar(fill = "red") +
+    coord_flip() +
+    ggtitle("hpg prefectures - # restaurants") +
+    labs(x = "")
+
+p3 <- air_visits %>%
+    left_join(air_store, by = "air_store_id") %>%
+    group_by(air_store_id, prefecture) %>%
+    summarise(mean_store_visit = mean(log1p(visitors))) %>%
+    group_by(prefecture) %>%
+    summarise(mean_log_visitors = mean(mean_store_visit),
+              sd_log_visitors = sd(mean_store_visit)) %>%
+    ggplot(aes(prefecture, mean_log_visitors)) +
+    geom_point(size = 4, color = "blue") +
+    geom_errorbar(aes(ymin = mean_log_visitors - sd_log_visitors,
+                      ymax = mean_log_visitors + sd_log_visitors),
+                  color = "blue", width = 0.5, size = 0.7) +
+    labs(x = "prefecture") +
+    theme(axis.text.x  = element_text(angle=15, hjust=1, vjust=0.9))
+
+layout <- matrix(c(1,2,1,2,1,2,3,3,3,3),5,2, byrow=TRUE)
+multiplot(p1, p2, p3, layout=layout)
+
+# save image
+save.image("kernel1.2.RData")
+
+# 7: Time series parameters
+foo <- air_visits %>%
+    left_join(air_store, by = "air_store_id") %>%
+    group_by(air_store_id, air_genre_name) %>%
+    summarise(mean_log_visits = mean(log1p(visitors)),
+              mean_log_visits = mean(log1p(visitors)),
+              sd_log_visits = sd(log1p(visitors))) %>%
+    ungroup()
+
+params_ts1 <- function(rownr){
+    bar <- air_visits %>%
+        filter(air_store_id == foo$air_store_id[rownr])
+    slope <- summary(lm(visitors ~ visit_date, data = bar))$coef[2]
+    slope_err <- summary(lm(visitors ~ visit_date, data = bar))$coef[4]
+    foobar <- tibble(air_store_id = foo$air_store_id[rownr],
+                     slope = slope,
+                     slope_err = slope_err)
+    return(foobar)}
+
+params <- params_ts1(1)
+for (i in seq(2,nrow(foo))){
+    params <- bind_rows(params, params_ts1(i))
+}
+
+ts_params <- foo %>%
+    left_join(params, by = "air_store_id")
+
+p1 <- ts_params %>%
+    ggplot(aes(mean_log_visits)) +
+    geom_histogram(bins = 50, fill = "blue")
+
+p2 <- ts_params %>%
+    ggplot(aes(sd_log_visits)) +
+    geom_histogram(bins = 50, fill = "blue")
+
+p3 <- ts_params %>%
+    filter(slope < 0.5) %>%
+    ggplot(aes(slope)) +
+    geom_histogram(bins = 50, fill = "blue") +
+    labs(x = "Slope < 0.5")
+
+p4 <- ts_params %>%
+    ggplot((aes(mean_log_visits, sd_log_visits))) +
+    geom_point(size = 2, color = "blue")
+
+p5 <- ts_params %>%
+    ggplot((aes(slope, slope_err))) +
+    geom_point(size = 2, color = "blue")
+
+layout <- matrix(c(1,1,2,2,3,3,4,4,4,5,5,5),2,6, byrow=TRUE)
+multiplot(p1, p2, p3, p4, p5, layout=layout)
+
+ts_params %>%
+    filter(abs(slope) > 0.25) %>%
+    select(air_store_id, air_genre_name, slope, slope_err)
+
+ts_params %>%
+    ggplot(aes(mean_log_visits, slope, color = air_genre_name)) +
+    geom_errorbarh(aes(xmin = mean_log_visits - sd_log_visits,
+                       xmax = mean_log_visits + sd_log_visits),
+                   color = "grey70", size = 0.7) +
+    geom_errorbar(aes(ymin = slope - slope_err,
+                      ymax = slope + slope_err),
+                  color = "grey70", size = 0.7) +
+    geom_point() +
+    theme(legend.position = "bottom") +
+    guides(color = guide_legend(nrow=3, override.aes=list(size=4))) +
+    labs(color = "") +
+    facet_zoom(y = (slope < 0.05 & slope > -0.1))
+
+# 8: Forecasting methods and examples
+# Here forecasting of time series data starts
+air_id <- "air_ba937bf13d40fb24"
+
+pred_len <- test %>%
+    separate(id, c("air", "store_id", "date"), sep = "_") %>%
+    distinct(date) %>%
+    nrow()
+
+max_date <- max(air_visits$visit_date)
+
+split_date <- max_date - pred_len
+
+all_visits <- tibble(visit_date = seq(min(air_visits$visit_date),
+                                      max(air_visits$visit_date), 1))
+
+foo <- air_visits %>%
+    filter(air_store_id == air_id)
+
+visits <- foo %>%
+    right_join(all_visits, by = "visit_date") %>%
+    mutate(visitors = log1p(visitors)) %>%
+    replace_na(list(visitors = median(log1p(foo$visitors)))) %>%
+    rownames_to_column()
+
+visits_train <- visits %>% filter(visit_date <= split_date)
+visits_valid <- visits %>% filter(visit_date > split_date)
+
+arima.fit <- auto.arima(tsclean(ts(visits_train$visitors,
+                                   frequency = 7)),
+                        stepwise = FALSE, approximation = FALSE)
+
+arima_visits <- arima.fit %>% forecast(h = pred_len, level = c(50,95))
+
+arima_visits %>%
+    autoplot +
+    geom_line(aes(as.integer(rowname)/7, visitors),
+              data = visits_valid, color = "grey40") +
+    labs(x = "Time [weeks]",
+         y = "log1p visitors vs auto.arima predictions")
+
+plot_auto_arima_air_id <- function(air_id){
+    pred_len <- test %>%
+        separate(id, c("air", "store_id", "date"), sep = "_") %>%
+        distinct(date) %>%
+        nrow()
+    
+    max_date <- max(air_visits$visit_date)
+    
+    split_date <- max_date - pred_len
+    
+    all_visits <- tibble(visit_date = seq(min(air_visits$visit_date),
+                                          max(air_visits$visit_date),
+                                          1))
+    
+    foo <- air_visits %>%
+        filter(air_store_id == air_id)
+    
+    visits <- foo %>%
+        right_join(all_visits, by = "visit_date") %>%
+        mutate(visitors = log1p(visitors)) %>%
+        replace_na(list(visitors = median(log1p(foo$visitors)))) %>%
+        rownames_to_column()
+    
+    visits_train <- visits %>% filter(visit_date <= split_date)
+    
+    visits_valid <- visits %>% filter(visit_date > split_date)
+    
+    arima.fit <- auto.arima(tsclean(ts(visits_train$visitors,
+                                       frequency = 7)),
+                            stepwise = FALSE, approximation = FALSE)
+    
+    arima_visits <- arima.fit %>%
+        forecast(h = pred_len, level = c(50,95))
+}
+
+
 
 
 
