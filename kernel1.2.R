@@ -167,7 +167,7 @@ p2 <- foo %>%
     geom_col(fill = "blue")
 
 p3 <- foo %>%
-    filter(diff_hour < 24*5) %>%
+    filter(diff_hour < 24*30) %>%
     group_by(diff_hour) %>%
     summarise(all_visitors = sum(reserve_visitors)) %>%
     ggplot(aes(diff_hour, all_visitors)) +
@@ -206,7 +206,7 @@ p2 <- foo %>%
     geom_col(fill = "red")
 
 p3 <- foo %>%
-    filter(diff_hour < 24*5) %>%
+    filter(diff_hour < 24*60) %>%
     group_by(diff_hour) %>%
     summarise(all_visitors = sum(reserve_visitors)) %>%
     ggplot(aes(diff_hour, all_visitors)) +
@@ -215,6 +215,8 @@ p3 <- foo %>%
 
 layout <- matrix(c(1,1,2,3),2,2, byrow=TRUE)
 multiplot(p1, p2, p3, layout=layout)
+
+p3
 
 # air store
 leaflet(air_store) %>%
@@ -297,7 +299,7 @@ p1 <- foo %>%
     theme(legend.position = "none")
 
 p2 <- foo %>%
-    filter(date > ymd("2016-04-15") & 
+    filter(date > ymd("2016-04-15") &
            date < ymd("2016-06-01")) %>%
     ggplot(aes(date, holiday_flg,
                color = holiday_flg)) +
@@ -341,7 +343,7 @@ foo <- foo %>%
 
 year(foo$date) <- 2017
 
-# this does not work
+# this works but takes so long time
 foo %>%
     filter(!is.na(date)) %>%
     mutate(year=fct_relevel(as.factor(year),
@@ -429,14 +431,14 @@ air_store %>%
     geom_count(colour = "blue") +
     theme(legend.position="bottom",
           axis.text.x=element_text(angle=45,hjust=1,vjust=0.9))
-
+#
 hpg_store %>%
     mutate(area = str_sub(hpg_area_name, 1, 10)) %>%
     ggplot(aes(area, hpg_genre_name)) +
     geom_count(colour = "red") +
     theme(legend.position = "bottom",
           axis.text.x=element_text(angle=45,hjust=1,vjust=0.9))
-
+#
 air_store %>%
     group_by(air_genre_name, air_area_name) %>%
     count() %>%
@@ -450,12 +452,12 @@ air_store %>%
 air_store %>%
     filter(air_store_id == "air_b5598d12d1b84890" |
            air_store_id == "air_bbe1c1a47e09f161")
-
+#
 air_visits %>%
     filter(air_store_id == "air_b5598d12d1b84890" | air_store_id == "air_bbe1c1a47e09f161") %>%
     arrange(visit_date) %>%
     head(10)
-
+#
 foobar <- hpg_store %>%
     group_by(hpg_genre_name, hpg_area_name) %>%
     count()
@@ -467,7 +469,7 @@ foobar %>%
     scale_y_log10() +
     coord_flip() +
     labs(x = "hpg genre", y = "Cases per hpg area")
-
+#
 foo <- air_visits %>%
     left_join(air_store, by = "air_store_id")
 
@@ -501,7 +503,6 @@ p3 <- foo %>%
     geom_point(color = "blue", size = 4) +
     geom_errorbar(aes(ymin = mean_mlv - sd_mlv, ymax = mean_mlv + sd_mlv),
                   width = 0.5, size = 0.7, color = "blue") +
-    
     labs(x = "Cases of identical Air genres per area",
          y = "Mean +/- SD of\n mean log1p visitors")
 
@@ -645,7 +646,6 @@ air_store$dist <- distCosine(air_coords, med_coord_air)/1e3
 hpg_store$dist <- distCosine(hpg_coords, med_coord_hpg)/1e3
 
 # apply counts, dist; add prefecture
-
 air_store <- air_store %>%
     mutate(dist_group = as.integer(case_when(dist < 80 ~ 1,
                                              dist < 300 ~ 2,
@@ -722,7 +722,7 @@ air_visits %>%
 
 all_reserve %>%
     mutate(wday = wday(visit_date, label=TRUE),
-           
+
            wday = fct_relevel(wday, c("Mon", "Tue", "Wed", "Thu",
                                       "Fri", "Sat", "Sun"))) %>%
     ggplot(aes(wday, visitors - reserve_visitors, fill = wday)) +
@@ -799,7 +799,7 @@ leaflet(foo) %>%
     addProviderTiles("CartoDB.Positron") %>%
     addScaleBar() %>%
     addCircleMarkers(~longitude, ~latitude,
-                     group = "AIR", color = "blue", fillOpacity = 0.5, 
+                     group = "AIR", color = "blue", fillOpacity = 0.5,
                      radius = 3*foo$dist_group) %>%
     addCircleMarkers(lng = bar$longitude, lat = bar$latitude,
                      group = "HPG", color = "red", fillOpacity = 0.5,
@@ -962,38 +962,103 @@ plot_auto_arima_air_id <- function(air_id){
         separate(id, c("air", "store_id", "date"), sep = "_") %>%
         distinct(date) %>%
         nrow()
-    
+
     max_date <- max(air_visits$visit_date)
-    
+
     split_date <- max_date - pred_len
-    
+
     all_visits <- tibble(visit_date = seq(min(air_visits$visit_date),
                                           max(air_visits$visit_date),
                                           1))
-    
+
     foo <- air_visits %>%
         filter(air_store_id == air_id)
-    
+
     visits <- foo %>%
         right_join(all_visits, by = "visit_date") %>%
         mutate(visitors = log1p(visitors)) %>%
         replace_na(list(visitors = median(log1p(foo$visitors)))) %>%
         rownames_to_column()
-    
+
     visits_train <- visits %>% filter(visit_date <= split_date)
-    
+
     visits_valid <- visits %>% filter(visit_date > split_date)
-    
+
     arima.fit <- auto.arima(tsclean(ts(visits_train$visitors,
                                        frequency = 7)),
                             stepwise = FALSE, approximation = FALSE)
-    
+
     arima_visits <- arima.fit %>%
         forecast(h = pred_len, level = c(50,95))
+    
+    arima_visits %>%
+        autoplot +
+        geom_line(aes(as.integer(rowname)/7, visitors),
+                  data = visits_valid, color = "grey40") +
+        labs(x = "Time [weeks]", y = "log1p visitors vs forecast")
 }
 
+p1 <- plot_auto_arima_air_id("air_f3f9824b7d70c3cf")
+p2 <- plot_auto_arima_air_id("air_8e4360a64dbd4c50")
+p3 <- plot_auto_arima_air_id("air_1c0b150f9e696a5f")
+p4 <- plot_auto_arima_air_id("air_900d755ebd2f7bbd")
 
+layout <- matrix(c(1,2,3,4),2,2, byrow=TRUE)
+multiplot(p1, p2, p3, p4, layout=layout)
 
+# Prophet
+air_id <- "air_ba937bf13d40fb24"
+
+pred_len <- test %>%
+    separate(id, c("air", "store_id", "date"), sep = "_") %>%
+    distinct(date) %>%
+    nrow()
+
+max_date <- max(air_visits$visit_date)
+split_date <- max_date - pred_len
+all_visits <- tibble(visit_date = seq(min(air_visits$visit_date),
+                                      max(air_visits$visit_date), 1))
+
+foo <- air_visits %>%
+    filter(air_store_id == air_id)
+
+visits <- foo %>%
+    right_join(all_visits, by = "visit_date") %>%
+    mutate(visitors = log1p(visitors)) %>%
+    rownames_to_column() %>%
+    select(y = visitors,
+           ds = visit_date)
+
+visits_train <- visits %>% filter(ds <= split_date)
+visits_valid <- visits %>% filter(ds > split_date)
+
+proph <- prophet(visits_train,
+                 changepoint.prior.scale=0.5,
+                 yearly.seasonality=FALSE)
+
+## Initial log joint probability = -7.65901
+## Optimization terminated normally: 
+##   Convergence detected: relative gradient magnitude is below tolerance
+
+future <- make_future_dataframe(proph, periods = pred_len)
+fcast <- predict(proph, future)
+
+plot(proph, fcast)
+
+prophet_plot_components(proph, fcast)
+
+fcast %>%
+    as.tibble() %>%
+    mutate(ds = date(ds)) %>%
+    ggplot(aes(ds, yhat)) +
+    geom_ribbon(aes(x = ds, ymin = yhat_lower, ymax = yhat_upper),
+                fill = "light blue") +
+    geom_line(colour = "blue") +
+    geom_line(data = visits_train, aes(ds, y), colour = "black") +
+    geom_line(data = visits_valid, aes(ds, y), colour = "grey50")
+
+# prophet analysis is still continuing
+# but here we will stop so that we can focus on KFAS
 
 
 # end of file
