@@ -16,3 +16,14 @@ Platform is assumed to be on R, because a package is implemented in R, which is 
 5. https://www.kaggle.com/dongxu027/time-series-ets-nn-arima-ses-lb-0-567
 
 #### We will follow kernel 1
+
+#### Other useful kernels and discussions
+1. https://www.kaggle.com/rsakata/16th-place-solution-simple-ver-private-0-509
+2. https://www.kaggle.com/sherring/recruit-restaurant-visitor-forecasting-first-try/notebook
+3. https://www.kaggle.com/c/recruit-restaurant-visitor-forecasting/discussion/45120
+4. https://www.kaggle.com/c/recruit-restaurant-visitor-forecasting/discussion/46602
+
+
+
+
+TEAF
