@@ -86,6 +86,12 @@ mean_visitors <- air_visits %>%
     summarise(mean(visitors))
 mean_visitors
 
+# median by stores
+median_by_stores <- air_visits %>%
+    group_by(air_store_id) %>%
+    summarise(median=median(visitors))
+median_by_stores
+
 # prepare submission
 head(test)
 
@@ -93,10 +99,10 @@ head(test)
 source("functions.R")
 submit_ids <- parse_test_id(test$id)
 dow_submision <- make_submission(submit_ids)
-make_submission(submit_ids, model="mean")
+make_submission(submit_ids, model="median_store")
 
-fwrite(make_submission(submit_ids, model="mean"),
-       file="data/mean_submission.csv",
+fwrite(make_submission(submit_ids, model="median_store"),
+       file="data/median_store_submission.csv",
        quote=FALSE)
 
 # end of file

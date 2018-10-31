@@ -4,6 +4,8 @@ predict_visitors <- function(id, date_, model="mean"){
         return(predict_by_dow(date_))
     }else if(model=="mean"){
         return(predict_by_stats(model))
+    }else if(model=="median_store"){
+        return(predict_by_median_by_store(id))
     }
 
     return(visitors)
@@ -21,6 +23,13 @@ predict_by_stats <- function(model="mean"){
         v <- 21
     }
     return(v)
+}
+
+predict_by_median_by_store <- function(id){
+    v <- select(filter(median_by_stores,
+                       air_store_id==id),
+                median)
+    return(as.integer(v))
 }
 
 make_submission <- function(ids,
