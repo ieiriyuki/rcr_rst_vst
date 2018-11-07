@@ -1,7 +1,10 @@
-#This script tries and plays forecast and KFAS packages
+#This script tries forecast by basic statistics
 
 # load help functions
-source("help_func.R")
+source("src/help_func.R")
+
+# load functions to predict
+source("src/functions.R")
 
 # library import
 check.packages(c('data.table', # read data with fread
@@ -15,8 +18,7 @@ check.packages(c('data.table', # read data with fread
                  ))
 
 # load data
-{
- rpath <- "data/"
+{rpath <- "data/"
  air_visits <- as.tibble(fread(paste(rpath,'air_visit_data.csv',sep='')))
 # air_reserve <- as.tibble(fread(paste(rpath,'air_reserve.csv',sep='')))
 # hpg_reserve <- as.tibble(fread(paste(rpath,'hpg_reserve.csv',sep='')))
@@ -27,8 +29,6 @@ check.packages(c('data.table', # read data with fread
  test <- as.tibble(fread(paste(rpath,'sample_submission.csv',sep='')))
 }
 
-# save.image("RData/raw_data.Rdata")
-
 # hava a look at data
 head(air_visits, 6)
 #head(air_reserve)
@@ -38,9 +38,6 @@ head(air_visits, 6)
 head(holidays, 6)
 #head(store_ids)
 head(test, 6)
-
-# Would like to union reserve data
-#
 
 # Reformating features
 air_visits <- air_visits %>%
@@ -76,27 +73,36 @@ visit_dow <- air_visits %>%
     summarise(avg_visit=mean(visitors))
 visit_dow
 
-# median of all individual records
-median_visitors <- air_visits %>%
-    summarise(median(visitors))
-median_visitors
-
-# median of all individual records
-mean_visitors <- air_visits %>%
-    summarise(mean(visitors))
-mean_visitors
-
 # median by stores
 median_by_stores <- air_visits %>%
     group_by(air_store_id) %>%
     summarise(median=median(visitors))
 median_by_stores
 
+# median by stores and day of week
+median_by_store_dow <- air_visits %>%
+    left_join(holidays, by=c("track_date"="track_date")) %>%
+    group_by(air_store_id, day_of_week) %>%
+    summarise(median=median(visitors))
+median_by_store_dow
+
+holidays %>% group_by(day_of_week) %>% summarise(first)
+
+res <- holidays %>%
+    group_by(day_of_week) %>%
+    left_join(median_by_store_dow, by="day_of_week") %>%
+    select(air_store_id, day_of_week, median) %>%
+    arrange(air_store_id)
+res
+
+air_visits %>% left_join(holidays, by=c("track_date"="track_date")) %>%
+    group_by(air_store_id) %>%
+    summarise(cnts=n_distinct(day_of_week)) %>%
+    filter(cnts<7)
+
 # prepare submission
 head(test)
 
-
-source("functions.R")
 submit_ids <- parse_test_id(test$id)
 dow_submision <- make_submission(submit_ids)
 make_submission(submit_ids, model="median_store")

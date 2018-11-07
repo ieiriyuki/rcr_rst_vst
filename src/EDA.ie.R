@@ -15,6 +15,24 @@ sapply(pkg, library, character.only=T)
     test <- as.tibble(fread(str_c(rpath, 'sample_submission.csv')))
 }
 
-rpath <- 'data/'
-air_visits <- read_csv(str_c(rpath,'air_visit_data.csv'))
-class
+# data type is modified
+air_visits <- air_visits %>%
+    mutate(visit_date = ymd(visit_date))
+air_visits
+
+holidays <- holidays %>%
+    mutate(holiday_flg = as.logical(holiday_flg),
+           calendar_date = ymd(calendar_date))
+holidays
+
+# join by date
+air_visits_calendar <- air_visits %>%
+    left_join(holidays, by=c("visit_date"="calendar_date"))
+air_visits_calendar
+
+# calculate median of each store and day of week
+median_by_store_dow <- air_visits_calendar %>%
+    group_by(air_store_id, day_of_week) %>%
+    summarise(median=median(visitors))
+median_by_store_dow
+
