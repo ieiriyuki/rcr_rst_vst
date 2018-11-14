@@ -63,6 +63,9 @@ holidays <- holidays %>%
     mutate(holiday_flg = as.logical(holiday_flg),
            track_date = ymd(calendar_date))
 
+# extract ids for submission
+submit_ids <- parse_test_id(test$id)
+
 #save.image("RData/typed_data.RData")
 #load("RData/typed_data.RData")
 
@@ -73,42 +76,88 @@ visit_dow <- air_visits %>%
     summarise(avg_visit=mean(visitors))
 visit_dow
 
+# make submission by mean of visitor for day of week
+# no longer available
+# dow_submision <- make_submission(submit_ids)
+
 # median by stores
-median_by_stores <- air_visits %>%
+median_by_store <- air_visits %>%
     group_by(air_store_id) %>%
     summarise(median=median(visitors))
-median_by_stores
+median_by_store
+
+# make submission by median of visitors for each store
+# this is a benchmark.score
+fwrite(make_submission(submit_ids, model="median_store"),
+       file="data/median_store_submission.csv",
+       quote=FALSE)
 
 # median by stores and day of week
 median_by_store_dow <- air_visits %>%
     left_join(holidays, by=c("track_date"="track_date")) %>%
     group_by(air_store_id, day_of_week) %>%
-    summarise(median=median(visitors))
+    summarise(median=median(visitors)) %>%
+    ungroup()
 median_by_store_dow
 
-holidays %>% group_by(day_of_week) %>% summarise(first)
-
-res <- holidays %>%
-    group_by(day_of_week) %>%
-    left_join(median_by_store_dow, by="day_of_week") %>%
-    select(air_store_id, day_of_week, median) %>%
-    arrange(air_store_id)
-res
-
+# check if any restaurant has no visitor
 air_visits %>% left_join(holidays, by=c("track_date"="track_date")) %>%
     group_by(air_store_id) %>%
     summarise(cnts=n_distinct(day_of_week)) %>%
     filter(cnts<7)
 
+# fill median missing for air_store_id and day_of_week
+ids <- tibble(id=submit_ids) %>%
+    mutate(id, num=1)
+
+dow <- holidays %>%
+    group_by(day_of_week) %>%
+    select(day_of_week) %>%
+    distinct() %>%
+    ungroup() %>%
+    mutate(day_of_week, num=1)
+
+test.tbl <- ids %>%
+    left_join(dow, by="num") %>%
+    select(c("id", "day_of_week")) %>%
+    mutate(air_store_id=id) %>%
+    select(c("air_store_id", "day_of_week"))
+test.tbl
+
+# this still contains NA
+all_median_by_store_dow <- test.tbl %>%
+    left_join(median_by_store_dow, by=c("air_store_id"="air_store_id",
+                                        "day_of_week"="day_of_week"))
+all_median_by_store_dow
+
+# calculate mean to fill
+mean_by_store <- all_median_by_store_dow %>%
+    group_by(air_store_id) %>%
+    summarise(mean=mean(median, na.rm=TRUE))
+mean_by_store
+
+# fill NA here
+for( i in 1:nrow(all_median_by_store_dow) ){
+    if( is.na(all_median_by_store_dow[i,]$median) ){
+        all_median_by_store_dow[i,]$median <- 
+            mean_by_store[
+                mean_by_store$air_store_id==all_median_by_store_dow[i,
+                        ]$air_store_id,
+                ]$mean
+    }
+}
+
+# make submission by median for each store and each day of week
+temp <- make_submission(submit_ids, model="median_store_dow")
+temp
+
+fwrite(temp,
+       file="data/median_store_dow_submission.csv",
+       quote=FALSE)
+
+
 # prepare submission
 head(test)
 
-submit_ids <- parse_test_id(test$id)
-dow_submision <- make_submission(submit_ids)
-make_submission(submit_ids, model="median_store")
-
-fwrite(make_submission(submit_ids, model="median_store"),
-       file="data/median_store_submission.csv",
-       quote=FALSE)
 
 # end of file
